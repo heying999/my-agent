@@ -7,7 +7,7 @@ import time
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict # 确保导入
+from typing import List, Dict  # 确保导入
 from urllib.parse import urljoin
 from openai import OpenAI
 from zoneinfo import ZoneInfo
@@ -21,10 +21,30 @@ def get_ai_client():
     if not api_key: return None
     return OpenAI(api_key=api_key, base_url="https://dashscope.aliyuncs.com/compatible-mode/v1", timeout=30.0)
 
+def clean_scraped_title(raw_text: str) -> str:
+    """从杂乱的卡片文字中精准提取题目"""
+    if not raw_text: return ""
+    lines = [l.strip() for l in raw_text.splitlines() if l.strip()]
+    
+    # 过滤掉包含这些关键词的行（点赞、作者、时间、评论数）
+    noise_keywords = ["posted by", "ago", "comments", "▲", "▼", "^"]
+    
+    for line in lines:
+        # 如果这一行不包含任何噪音关键词，且长度足够，通常就是题目
+        if not any(k in line.lower() for k in noise_keywords) and len(line) > 5:
+            return line
+            
+    # 如果没找到，尝试取最长的一行（通常题目比较长）
+    if lines:
+        valid_lines = [l for l in lines if not any(k in l.lower() for k in noise_keywords)]
+        if valid_lines:
+            return max(valid_lines, key=len)
+            
+    return lines[0] if lines else ""
+
 def incremental_translate(new_items: List[Dict], existing_items: List[Dict], client: OpenAI) -> List[Dict]:
-    """如果删除了 data.json，这里会全量翻译前 30 条"""
     if not client or not new_items: return new_items
-    trans_map = {it["url"]: it["title_cn"] for it in existing_items if it.get("title_cn")}
+    trans_map = {it["url"]: it["title_cn"] for it in existing_items if it.get("title_cn") and len(it["title_cn"]) > 1}
     
     to_translate = []
     for it in new_items:
@@ -35,10 +55,9 @@ def incremental_translate(new_items: List[Dict], existing_items: List[Dict], cli
     
     if not to_translate: return new_items
 
-    # 刚重置时，文章很多，我们先翻译最前面的 30 条，剩下的以后慢慢翻
     max_batch = 30
     process_list = to_translate[:max_batch]
-    print(f"🌐 正在翻译 {len(process_list)} 条新题目...", flush=True)
+    print(f"🌐 正在翻译 {len(process_list)} 条纯净题目...", flush=True)
     
     chunk_size = 10
     for i in range(0, len(process_list), chunk_size):
@@ -56,8 +75,10 @@ def incremental_translate(new_items: List[Dict], existing_items: List[Dict], cli
 
 def summarize_with_ai(items: List[Dict], client: OpenAI) -> str:
     if not client or not items: return ""
-    # 总结使用翻译后的标题
-    titles = [it.get("title_cn", it["title"]) for it in items[:30]]
+    # 只取前 30 条翻译好的标题进行总结
+    titles = [it.get("title_cn", it["title"]) for it in items[:30] if len(it.get("title_cn", "")) > 1]
+    if not titles: titles = [it["title"] for it in items[:15]] # 兜底
+
     prompt = "总结今日 10 大核心动向。要求：简体中文、10条、加粗关键词、严禁英文。\n\n" + "\n".join(f"- {t}" for t in titles)
     try:
         completion = client.chat.completions.create(model="qwen-plus", messages=[{"role": "user", "content": prompt}])
@@ -76,91 +97,68 @@ def scrape_all_channels(urls: List[str], limit: int) -> List[Dict]:
             try:
                 page = context.new_page()
                 page.goto(url, wait_until="domcontentloaded", timeout=30000)
-                # 使用更通用的选择器：只要是包含 /post/ 的链接
                 page.wait_for_selector('a[href*="/post/"]', timeout=20000)
                 
-                # 抓取所有文章链接
-                links = page.query_selector_all('a[href*="/post/"]')
+                cards = page.query_selector_all('div.flex.flex-col.gap-1')
                 count = 0
-                seen_urls = set()
-                
-                for link in links:
-                    href = link.get_attribute("href")
-                    if not href or href in seen_urls: continue
+                for card in cards:
+                    raw_text = card.inner_text().strip()
+                    link_el = card.query_selector('a[href*="/post/"]')
+                    if not link_el or not raw_text: continue
                     
-                    # 获取该链接所在的容器文字，用来提取热度
-                    # 向上找两层通常能覆盖整个卡片
-                    parent = link.evaluate_handle("el => el.parentElement.parentElement")
-                    raw_text = parent.as_element().inner_text() if parent.as_element() else ""
+                    href = link_el.get_attribute("href")
+                    # 【核心修复】：调用清洗函数提取真正的题目
+                    clean_title = clean_scraped_title(raw_text)
                     
-                    # 清洗题目：如果是那种包含赞数的文字，只取题目部分
-                    title = link.inner_text().strip()
-                    if not title or len(title) < 10 or "comments" in title.lower(): continue
-
-                    # 提取赞数和评论数
+                    # 提取热度信息
                     score = re.search(r'[▲\^]\s*(\d+)', raw_text)
                     comments = re.search(r'(\d+)\s*comments', raw_text.lower())
                     score_val = score.group(1) if score else "0"
                     comment_val = comments.group(1) if comments else "0"
 
+                    if len(clean_title) < 5: continue
+
                     all_results.append({
-                        "title": title.split('\n')[0], # 只要第一行
+                        "title": clean_title,
                         "url": urljoin("https://www.moltbook.com", href),
                         "category": cat,
                         "hot_info": f"🔥{score_val} · 💬{comment_val}"
                     })
-                    seen_urls.add(href)
                     count += 1
                     if count >= limit: break
-                
-                print(f"✅ {cat} 抓取到 {count} 条。", flush=True)
                 page.close()
-            except Exception as e: print(f"❌ {cat} 抓取超时或错误: {e}", flush=True)
+            except Exception as e: print(f"❌ {cat} 错误: {e}", flush=True)
         browser.close()
     return all_results
 
 def main():
     script_dir = Path(__file__).resolve().parent
     data_path = script_dir / "data.json"
+    config = json.loads((script_dir / "config.json").read_text())
     
-    # 读取配置
-    try:
-        config = json.loads((script_dir / "config.json").read_text())
-        urls = config.get("target_urls", [])
-        limit = config.get("item_limit", 19)
-    except:
-        urls = ["https://www.moltbook.com/m/ai"]; limit = 19
-
-    # 1. 抓取
-    all_new = scrape_all_channels(urls, limit)
-    if not all_new:
-        print("⚠️ 未抓取到任何内容，请检查网址或选择器。", flush=True)
-
-    # 2. 读取旧数据（如果已删除则为空）
+    all_new = scrape_all_channels(config.get("target_urls", []), config.get("item_limit", 19))
+    
     existing_items = []
     if data_path.exists():
         try: existing_items = json.loads(data_path.read_text(encoding="utf-8")).get("items", [])
         except: pass
 
-    # 3. 翻译与总结
     client = get_ai_client()
     all_new = incremental_translate(all_new, existing_items, client)
     summary = summarize_with_ai(all_new, client)
 
-    # 4. 去重合并
     combined = all_new + existing_items
     unique, seen = [], set()
     for it in combined:
         if it["url"] not in seen:
             unique.append(it); seen.add(it["url"])
 
-    # 5. 保存回 data.json
     data_path.write_text(json.dumps({
         "beijing_time": get_beijing_time(),
         "ai_summary": summary,
         "items": unique[:500]
     }, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"🎉 成功！当前 data.json 共有 {len(unique[:500])} 条情报。", flush=True)
+    print(f"🎉 成功！当前库存 {len(unique[:500])} 条。", flush=True)
 
 if __name__ == "__main__":
     main()
