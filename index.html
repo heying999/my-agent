@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>🤖 Moltbook 科技动向仪表盘</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            boxShadow: {
+              glow: "0 0 0 1px rgba(34,211,238,.25), 0 0 30px rgba(34,211,238,.12)",
+            },
+          },
+        },
+      };
+    </script>
+  </head>
+  <body class="min-h-screen bg-slate-950 text-slate-100">
+    <div class="pointer-events-none fixed inset-0 overflow-hidden">
+      <div class="absolute -top-24 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-cyan-500/10 blur-3xl"></div>
+      <div class="absolute -bottom-24 left-1/4 h-[520px] w-[520px] rounded-full bg-fuchsia-500/10 blur-3xl"></div>
+      <div class="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(148,163,184,.14)_1px,transparent_0)] [background-size:18px_18px] opacity-40"></div>
+    </div>
+
+    <main class="relative mx-auto max-w-6xl px-4 py-10">
+      <header class="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+        <div>
+          <div class="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs text-cyan-200 shadow-glow">
+            <span class="h-1.5 w-1.5 rounded-full bg-cyan-300"></span>
+            本地仪表盘
+          </div>
+          <h1 class="mt-3 text-2xl font-semibold tracking-tight">🤖 Moltbook 科技动向自动监测</h1>
+          <p class="mt-1 text-sm text-slate-400">保存配置并运行机器人，自动刷新趋势总结与文章列表。</p>
+        </div>
+        <div class="mt-4 flex items-center gap-3 md:mt-0">
+          <div class="rounded-lg border border-slate-800 bg-slate-900/40 px-4 py-2 text-sm">
+            <div class="text-slate-400">最后更新时间</div>
+            <div id="last_time" class="mt-0.5 font-medium text-slate-100">-</div>
+          </div>
+        </div>
+      </header>
+
+      <!-- 配置区 -->
+      <section class="mt-8 rounded-2xl border border-slate-800 bg-slate-900/40 p-5 shadow-glow">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div class="grid w-full grid-cols-1 gap-4 md:grid-cols-3">
+            <div class="md:col-span-2">
+              <label class="text-xs text-slate-400">URL</label>
+              <input
+                id="target_url"
+                class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none ring-0 placeholder:text-slate-600 focus:border-cyan-400/40 focus:ring-2 focus:ring-cyan-400/10"
+                placeholder="https://www.moltbook.com/m/ai"
+              />
+            </div>
+            <div>
+              <label class="text-xs text-slate-400">抓取条数</label>
+              <input
+                id="item_limit"
+                type="number"
+                min="1"
+                max="200"
+                value="30"
+                class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none ring-0 focus:border-cyan-400/40 focus:ring-2 focus:ring-cyan-400/10"
+              />
+            </div>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <button
+              id="save_run"
+              class="inline-flex items-center gap-2 rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-glow transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <span>保存并运行机器人</span>
+              <span id="btn_spinner" class="hidden h-4 w-4 animate-spin rounded-full border-2 border-slate-950/40 border-t-slate-950"></span>
+            </button>
+            <button
+              id="refresh"
+              class="rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-2 text-sm text-slate-200 transition hover:border-slate-700 hover:bg-slate-950/60"
+            >
+              刷新数据
+            </button>
+          </div>
+        </div>
+
+        <div class="mt-4 flex items-center justify-between gap-3">
+          <div id="status" class="text-xs text-slate-400">就绪</div>
+          <div class="text-xs text-slate-500">提示：运行期间服务端会同步执行脚本，完成后自动刷新。</div>
+        </div>
+      </section>
+
+      <!-- 展示区 -->
+      <section class="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <!-- AI 趋势总结 -->
+        <div class="lg:col-span-1">
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/40 p-5 shadow-glow">
+            <div class="flex items-center justify-between">
+              <h2 class="text-sm font-semibold text-slate-100">AI 趋势总结</h2>
+              <span class="rounded-full border border-fuchsia-400/20 bg-fuchsia-400/10 px-2 py-0.5 text-[11px] text-fuchsia-200">DDG · gpt-4o-mini</span>
+            </div>
+            <div id="ai_summary" class="mt-4 text-sm text-slate-200">
+              <div class="animate-pulse text-slate-500">等待数据…</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 文章列表 -->
+        <div class="lg:col-span-2">
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/40 p-5 shadow-glow">
+            <div class="flex items-center justify-between">
+              <h2 class="text-sm font-semibold text-slate-100">抓取到的文章列表</h2>
+              <div class="text-xs text-slate-400"><span id="item_count">0</span> 条</div>
+            </div>
+            <div id="items" class="mt-4 divide-y divide-slate-800"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+
+      async function loadConfig() {
+        const res = await fetch("/api/config");
+        const cfg = await res.json();
+        if (cfg.target_url) $("target_url").value = cfg.target_url;
+        if (cfg.item_limit) $("item_limit").value = cfg.item_limit;
+      }
+
+      async function saveConfig() {
+        const payload = {
+          target_url: $("target_url").value,
+          item_limit: Number($("item_limit").value),
+        };
+        const res = await fetch("/api/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "保存失败");
+        return data;
+      }
+
+      async function runJob() {
+        const res = await fetch("/api/run", { method: "POST" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "运行失败");
+        return data;
+      }
+
+      async function refreshData() {
+        const res = await fetch("/api/data");
+        const data = await res.json();
+
+        $("last_time").textContent = data.beijing_time || "-";
+
+        // AI summary：把 markdown 的 - 开头行渲染成列表
+        const summaryEl = $("ai_summary");
+        summaryEl.innerHTML = "";
+        const summary = (data.ai_summary || "").trim();
+        if (summary) {
+          const lines = summary.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+          const ul = document.createElement("ul");
+          ul.className = "space-y-2";
+          for (const ln of lines) {
+            const li = document.createElement("li");
+            li.className = "rounded-xl border border-slate-800 bg-slate-950/40 p-3 text-sm leading-relaxed";
+            li.textContent = ln.replace(/^-+\s*/, "");
+            ul.appendChild(li);
+          }
+          summaryEl.appendChild(ul);
+        } else {
+          summaryEl.innerHTML = '<div class="text-slate-500">暂无总结</div>';
+        }
+
+        // items list
+        const itemsEl = $("items");
+        itemsEl.innerHTML = "";
+        const items = Array.isArray(data.items) ? data.items : [];
+        $("item_count").textContent = String(items.length);
+
+        if (!items.length) {
+          itemsEl.innerHTML = '<div class="py-6 text-sm text-slate-500">暂无文章</div>';
+          return;
+        }
+
+        for (const it of items) {
+          const title = (it && it.title) ? String(it.title) : "";
+          const url = (it && it.url) ? String(it.url) : "";
+          if (!url) continue;
+
+          const a = document.createElement("a");
+          a.href = url;
+          a.target = "_blank";
+          a.rel = "noreferrer";
+          a.className = "block py-3 transition hover:bg-slate-950/30";
+
+          const row = document.createElement("div");
+          row.className = "flex items-start justify-between gap-4";
+
+          const left = document.createElement("div");
+          left.className = "min-w-0";
+
+          const h = document.createElement("div");
+          h.className = "truncate text-sm font-medium text-slate-100";
+          h.textContent = title || url;
+
+          const u = document.createElement("div");
+          u.className = "mt-1 truncate text-xs text-slate-500";
+          u.textContent = url;
+
+          left.appendChild(h);
+          left.appendChild(u);
+
+          const right = document.createElement("div");
+          right.className = "shrink-0 text-xs text-cyan-300";
+          right.textContent = "打开 →";
+
+          row.appendChild(left);
+          row.appendChild(right);
+          a.appendChild(row);
+
+          itemsEl.appendChild(a);
+        }
+      }
+
+      function setBusy(busy, msg) {
+        const btn = $("save_run");
+        const sp = $("btn_spinner");
+        btn.disabled = !!busy;
+        sp.classList.toggle("hidden", !busy);
+        $("status").textContent = msg || (busy ? "运行中…" : "就绪");
+      }
+
+      $("save_run").onclick = async () => {
+        try {
+          setBusy(true, "保存配置中…");
+          await saveConfig();
+          await loadConfig();
+          setBusy(true, "机器人运行中…（请稍候）");
+          await runJob();
+          setBusy(true, "刷新数据中…");
+          await refreshData();
+          setBusy(false, "完成");
+        } catch (e) {
+          setBusy(false, "失败");
+          alert(String(e));
+        }
+      };
+      $("refresh").onclick = async () => {
+        try {
+          setBusy(true, "刷新数据中…");
+          await refreshData();
+          setBusy(false, "完成");
+        } catch (e) {
+          setBusy(false, "失败");
+          alert(String(e));
+        }
+      };
+
+      loadConfig().then(refreshData).catch(() => {});
+    </script>
+  </body>
+</html>
+

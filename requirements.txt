@@ -1,0 +1,9 @@
+# 安装后首次运行需执行: python3 -m playwright install chromium
+playwright>=1.40.0
+
+# 用于 DuckDuckGo AI Chat 总结（包含 DDGS().chat()）
+duckduckgo_search==7.5.5
+
+flask>=2.3.0
+
+apscheduler>=3.10.0
