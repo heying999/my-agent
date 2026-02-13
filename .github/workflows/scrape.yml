@@ -1,0 +1,38 @@
+name: Moltbook 自动抓取
+
+on:
+  schedule:
+    - cron: '0 * * * *'  # 每小时运行一次，你可以根据需要修改
+  workflow_dispatch:      # 允许手动运行
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write    # 赋予机器人修改 README 的权限
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: 安装依赖
+        run: |
+          pip install -r requirements.txt
+
+      - name: 安装浏览器内核
+        run: playwright install chromium --with-deps
+
+      - name: 运行机器人
+        run: python fetch_moltbook_news.py
+
+      - name: 提交更新
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add README.md data.json
+          git commit -m "🤖 机器人自动更新数据" || echo "没有变化需要提交"
+          git push
