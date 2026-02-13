@@ -23,10 +23,10 @@
         <div>
           <div class="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs text-cyan-200 shadow-glow">
             <span class="h-1.5 w-1.5 rounded-full bg-cyan-300"></span>
-            智能情报 Agent
+            智能聚合 Agent
           </div>
           <h1 class="mt-3 text-2xl font-semibold tracking-tight">🤖 Moltbook 科技动向情报库</h1>
-          <p class="mt-1 text-sm text-slate-400">已开启增量储存模式，支持历史记录搜索与翻页查看。</p>
+          <p class="mt-1 text-sm text-slate-400">支持多频道聚合抓取、分类索引与 AI 深度总结。</p>
         </div>
         <div class="rounded-lg border border-slate-800 bg-slate-900/40 px-4 py-2 text-sm">
           <div class="text-slate-400">最后更新时间</div>
@@ -40,24 +40,27 @@
             <input
               id="search_input"
               type="text"
-              placeholder="搜索历史文章标题或关键词..."
+              placeholder="搜索文章标题、频道或关键词..."
               class="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-10 py-2.5 text-sm text-slate-100 outline-none focus:border-cyan-400/40 focus:ring-2 focus:ring-cyan-400/10"
             />
             <span class="absolute left-3 top-3 text-slate-500">🔍</span>
           </div>
           <div class="flex items-center gap-3">
-            <button id="refresh" class="rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-2.5 text-sm transition hover:bg-slate-800">刷新</button>
-            <button id="save_run" class="rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400">手动触发</button>
+            <button id="refresh" class="rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-2.5 text-sm transition hover:bg-slate-800">刷新数据</button>
+            <button id="save_run" class="rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400">手动触发抓取</button>
           </div>
         </div>
       </section>
 
       <section class="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div class="lg:col-span-1">
-          <div class="rounded-2xl border border-slate-800 bg-slate-900/40 p-5 shadow-glow">
-            <h2 class="text-sm font-semibold text-slate-100">最新 AI 趋势总结</h2>
-            <div id="ai_summary" class="mt-4 text-sm text-slate-200">
-              <div class="animate-pulse text-slate-500">等待云端同步...</div>
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/40 p-5 shadow-glow h-fit sticky top-6">
+            <h2 class="text-sm font-semibold text-slate-100 flex items-center gap-2">
+              <span class="h-1.5 w-1.5 rounded-full bg-fuchsia-400"></span>
+              今日 10 大核心动向
+            </h2>
+            <div id="ai_summary" class="mt-4 text-xs leading-relaxed text-slate-200">
+              <div class="animate-pulse text-slate-500">正在分析全频道数据...</div>
             </div>
           </div>
         </div>
@@ -65,9 +68,10 @@
         <div class="lg:col-span-2">
           <div class="rounded-2xl border border-slate-800 bg-slate-900/40 p-5 shadow-glow">
             <div class="flex items-center justify-between border-b border-slate-800 pb-4">
-              <h2 class="text-sm font-semibold text-slate-100">情报列表</h2>
-              <div class="text-xs text-slate-400">共 <span id="item_count">0</span> 条记录</div>
+              <h2 class="text-sm font-semibold text-slate-100">分类情报流</h2>
+              <div class="text-xs text-slate-400">共 <span id="item_count">0</span> 条去重记录</div>
             </div>
+            
             <div id="items_list" class="divide-y divide-slate-800/50"></div>
             
             <div class="mt-6 flex items-center justify-between border-t border-slate-800 pt-6">
@@ -89,7 +93,6 @@
       let currentPage = 1;
       const itemsPerPage = 20;
 
-      // 1. 获取数据
       async function fetchData() {
         const path = isGitHub ? "data.json" : "/api/data";
         try {
@@ -106,41 +109,50 @@
         }
       }
 
-      // 2. 渲染 AI 总结
       function renderSummary(summary) {
         const el = $("ai_summary");
         if (!summary) return el.innerHTML = '<div class="text-slate-500">暂无总结</div>';
         const lines = summary.split('\n').filter(l => l.trim().startsWith("-"));
-        el.innerHTML = `<ul class="space-y-3">${lines.map(l => `<li class="rounded-xl border border-slate-800 bg-slate-950/40 p-3 leading-relaxed">${l.replace(/^-+\s*/, "")}</li>`).join('')}</ul>`;
+        el.innerHTML = `<ul class="space-y-4">${lines.map(l => `
+          <li class="relative pl-4 before:absolute before:left-0 before:top-2 before:h-1 before:w-1 before:rounded-full before:bg-cyan-500/50">
+            ${l.replace(/^-+\s*/, "").replace(/\*\*(.*?)\*\*/g, '<b class="text-cyan-300">$1</b>')}
+          </li>`).join('')}</ul>`;
       }
 
-      // 3. 渲染列表与分页逻辑
       function updateDisplay() {
         const start = (currentPage - 1) * itemsPerPage;
         const end = start + itemsPerPage;
         const pageItems = filteredItems.slice(start, end);
 
         const listEl = $("items_list");
-        listEl.innerHTML = pageItems.length ? "" : '<div class="py-10 text-center text-slate-500 text-sm">没有找到匹配的文章</div>';
+        listEl.innerHTML = pageItems.length ? "" : '<div class="py-10 text-center text-slate-500 text-sm">未找到匹配的情报</div>';
 
         pageItems.forEach(it => {
           const div = document.createElement("a");
           div.href = it.url;
           div.target = "_blank";
           div.className = "group block py-4 transition hover:bg-slate-900/20";
+          
+          // 渲染频道分类标签
+          const categoryTag = it.category ? 
+            `<span class="mr-2 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 uppercase font-bold tracking-wider">${it.category}</span>` 
+            : '';
+
           div.innerHTML = `
             <div class="flex items-start justify-between gap-4">
               <div class="min-w-0">
-                <div class="text-sm font-medium text-slate-100 group-hover:text-cyan-300 transition truncate">${it.title}</div>
-                <div class="mt-1 text-xs text-slate-500 truncate">${it.url}</div>
+                <div class="text-sm font-medium text-slate-100 group-hover:text-cyan-300 transition flex items-center flex-wrap gap-y-1">
+                  ${categoryTag}
+                  <span class="truncate">${it.title}</span>
+                </div>
+                <div class="mt-1 text-[10px] text-slate-500 truncate opacity-60">${it.url}</div>
               </div>
-              <div class="text-[10px] text-slate-600 border border-slate-800 rounded px-1.5 py-0.5 whitespace-nowrap">历史存档</div>
+              <div class="text-[10px] text-slate-600 shrink-0 mt-1 font-mono group-hover:text-cyan-400 transition">GO ↗</div>
             </div>
           `;
           listEl.appendChild(div);
         });
 
-        // 更新分页状态
         const totalPages = Math.ceil(filteredItems.length / itemsPerPage) || 1;
         $("page_info").textContent = `第 ${currentPage} / ${totalPages} 页`;
         $("item_count").textContent = filteredItems.length;
@@ -148,20 +160,22 @@
         $("next_page").disabled = currentPage === totalPages;
       }
 
-      // 4. 搜索功能
       $("search_input").oninput = (e) => {
         const query = e.target.value.toLowerCase();
-        filteredItems = allItems.filter(it => it.title.toLowerCase().includes(query) || it.url.toLowerCase().includes(query));
+        filteredItems = allItems.filter(it => 
+          it.title.toLowerCase().includes(query) || 
+          (it.category && it.category.toLowerCase().includes(query)) ||
+          it.url.toLowerCase().includes(query)
+        );
         currentPage = 1;
         updateDisplay();
       };
 
-      // 5. 事件监听
       $("prev_page").onclick = () => { if(currentPage > 1) { currentPage--; updateDisplay(); window.scrollTo(0,0); } };
       $("next_page").onclick = () => { if(currentPage * itemsPerPage < filteredItems.length) { currentPage++; updateDisplay(); window.scrollTo(0,0); } };
       $("refresh").onclick = () => fetchData();
       $("save_run").onclick = () => {
-        if (isGitHub) alert("请前往 GitHub Actions 手动点击 Run workflow。");
+        if (isGitHub) alert("请前往 GitHub Actions 页面点击 'Run workflow'。");
         else fetch("/api/run", {method:"POST"}).then(() => fetchData());
       };
 
