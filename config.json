@@ -1,7 +1,9 @@
 {
-  "target_url": "https://www.moltbook.com/m/ai",
-  "https://www.moltbook.com/m/agents",
-  "https://www.moltbook.com/m/aithoughts",
-  "https://www.moltbook.com/m/technology",
+  "target_urls": [
+    "https://www.moltbook.com/m/ai",
+    "https://www.moltbook.com/m/agents",
+    "https://www.moltbook.com/m/aithoughts",
+    "https://www.moltbook.com/m/technology"
+  ],
   "item_limit": 19
 }
