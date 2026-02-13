@@ -1,9 +1,12 @@
-# 安装后首次运行需执行: python3 -m playwright install chromium
+# 核心爬虫引擎
 playwright>=1.40.0
 
-# 用于 DuckDuckGo AI Chat 总结（包含 DDGS().chat()）
+# 阿里云 AI 总结 (OpenAI 兼容接口)
+openai
+
+# 兜底总结方案 (DuckDuckGo)
 duckduckgo_search==7.5.5
 
+# 本地 Flask 仪表盘所需
 flask>=2.3.0
-
 apscheduler>=3.10.0
