@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 检出完整历史，方便处理合并
 
       - name: 设置 Python
         uses: actions/setup-python@v4
@@ -28,7 +30,6 @@ jobs:
 
       - name: 运行机器人
         env:
-          # 关键修改：从 GitHub Secrets 读取 Key 并注入环境变量
           DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
         run: python fetch_moltbook_news.py
 
@@ -36,6 +37,16 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
+          
+          # 1. 把修改后的数据文件加入暂存区
           git add README.md data.json
+          
+          # 2. 尝试提交，如果没有变化就跳过
           git commit -m "🤖 机器人自动更新数据 (使用阿里云总结)" || echo "没有变化需要提交"
-          git push
+          
+          # 3. 关键：解决冲突！
+          # 先拉取远程的改动（比如你刚才手动改的 requirements.txt），并把机器人的提交接在后面
+          git pull --rebase origin main
+          
+          # 4. 再次推送
+          git push origin main
