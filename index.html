@@ -10,8 +10,13 @@
         theme: { extend: { boxShadow: { glow: "0 0 0 1px rgba(34,211,238,.25), 0 0 30px rgba(34,211,238,.12)" } } }
       };
     </script>
+    <style>
+      /* 强制单行/双语截断逻辑 */
+      .line-clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+      .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    </style>
   </head>
-  <body class="min-h-screen bg-slate-950 text-slate-100">
+  <body class="min-h-screen bg-slate-950 text-slate-100 font-sans">
     <div class="pointer-events-none fixed inset-0 overflow-hidden">
       <div class="absolute -top-24 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-cyan-500/10 blur-3xl"></div>
       <div class="absolute -bottom-24 left-1/4 h-[520px] w-[520px] rounded-full bg-fuchsia-500/10 blur-3xl"></div>
@@ -26,11 +31,11 @@
             智能聚合 Agent
           </div>
           <h1 class="mt-3 text-2xl font-semibold tracking-tight">🤖 Moltbook 科技动向情报库</h1>
-          <p class="mt-1 text-sm text-slate-400">支持多频道聚合抓取、双语对照与 AI 深度总结。</p>
+          <p class="mt-1 text-sm text-slate-400">支持多频道聚合抓取、双语对照与热度实时追踪。</p>
         </div>
         <div class="rounded-lg border border-slate-800 bg-slate-900/40 px-4 py-2 text-sm">
-          <div class="text-slate-400">最后更新时间</div>
-          <div id="last_time" class="mt-0.5 font-medium text-slate-100">-</div>
+          <div class="text-slate-400 text-xs">最后更新时间</div>
+          <div id="last_time" class="mt-0.5 font-medium text-slate-100 font-mono">-</div>
         </div>
       </header>
 
@@ -40,14 +45,14 @@
             <input
               id="search_input"
               type="text"
-              placeholder="搜索中英文标题、频道或关键词..."
+              placeholder="搜索题目、评论数或关键词..."
               class="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-10 py-2.5 text-sm text-slate-100 outline-none focus:border-cyan-400/40 focus:ring-2 focus:ring-cyan-400/10"
             />
             <span class="absolute left-3 top-3 text-slate-500">🔍</span>
           </div>
           <div class="flex items-center gap-3">
-            <button id="refresh" class="rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-2.5 text-sm transition hover:bg-slate-800">刷新数据</button>
-            <button id="save_run" class="rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400">手动触发抓取</button>
+            <button id="refresh" class="rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-2.5 text-sm transition hover:bg-slate-800">刷新缓存</button>
+            <button id="save_run" class="rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400">强制重抓</button>
           </div>
         </div>
       </section>
@@ -60,7 +65,7 @@
               今日 10 大核心动向
             </h2>
             <div id="ai_summary" class="mt-4 text-[13px] leading-relaxed text-slate-200">
-              <div class="animate-pulse text-slate-500">正在分析全频道数据...</div>
+              <div class="animate-pulse text-slate-500">正在分析云端情报...</div>
             </div>
           </div>
         </div>
@@ -68,15 +73,15 @@
         <div class="lg:col-span-2">
           <div class="rounded-2xl border border-slate-800 bg-slate-900/40 p-5 shadow-glow">
             <div class="flex items-center justify-between border-b border-slate-800 pb-4">
-              <h2 class="text-sm font-semibold text-slate-100 text-cyan-400/80">全球实时情报 (双语对照)</h2>
-              <div class="text-[11px] text-slate-500 font-mono">COUNT: <span id="item_count">0</span></div>
+              <h2 class="text-sm font-semibold text-slate-100 text-cyan-400/80">全球科技情报流</h2>
+              <div class="text-[11px] text-slate-500 font-mono uppercase tracking-tighter">DATASET: <span id="item_count">0</span> RECS</div>
             </div>
             
             <div id="items_list" class="divide-y divide-slate-800/50"></div>
             
             <div class="mt-6 flex items-center justify-between border-t border-slate-800 pt-6">
               <button id="prev_page" class="rounded-lg border border-slate-800 px-3 py-1 text-xs transition hover:bg-slate-800 disabled:opacity-30">上一页</button>
-              <div id="page_info" class="text-xs text-slate-500 font-mono">PAGE 1 / 1</div>
+              <div id="page_info" class="text-xs text-slate-500 font-mono tracking-widest uppercase">PAGE 1 / 1</div>
               <button id="next_page" class="rounded-lg border border-slate-800 px-3 py-1 text-xs transition hover:bg-slate-800 disabled:opacity-30">下一页</button>
             </div>
           </div>
@@ -94,7 +99,8 @@
       const itemsPerPage = 20;
 
       async function fetchData() {
-        const path = isGitHub ? "data.json" : "/api/data";
+        // 增加随机参数粉碎浏览器缓存
+        const path = isGitHub ? `data.json?t=${new Date().getTime()}` : "/api/data";
         try {
           const res = await fetch(path);
           const data = await res.json();
@@ -105,13 +111,13 @@
           renderSummary(data.ai_summary);
           updateDisplay();
         } catch (e) {
-          console.error("加载失败", e);
+          console.error("加载数据失败", e);
         }
       }
 
       function renderSummary(summary) {
         const el = $("ai_summary");
-        if (!summary) return el.innerHTML = '<div class="text-slate-500">暂无总结</div>';
+        if (!summary) return el.innerHTML = '<div class="text-slate-500">总结生成中...</div>';
         const lines = summary.split('\n').filter(l => l.trim().startsWith("-"));
         el.innerHTML = `<ul class="space-y-4">${lines.map(l => `
           <li class="relative pl-4 before:absolute before:left-0 before:top-2 before:h-1 before:w-1 before:rounded-full before:bg-cyan-500/50">
@@ -125,7 +131,7 @@
         const pageItems = filteredItems.slice(start, end);
 
         const listEl = $("items_list");
-        listEl.innerHTML = pageItems.length ? "" : '<div class="py-10 text-center text-slate-500 text-sm">未找到匹配的情报</div>';
+        listEl.innerHTML = pageItems.length ? "" : '<div class="py-10 text-center text-slate-500 text-sm italic">NO INTELLIGENCE FOUND</div>';
 
         pageItems.forEach(it => {
           const div = document.createElement("a");
@@ -133,26 +139,25 @@
           div.target = "_blank";
           div.className = "group block py-4 transition hover:bg-slate-900/10";
           
-          // 渲染频道分类标签
           const categoryTag = it.category ? 
             `<span class="mr-2 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 uppercase font-bold tracking-wider">${it.category}</span>` 
             : '';
 
-          // 核心逻辑：双语展示
-          const mainTitle = it.title_cn || it.title; // 优先显示中文
-          const subTitle = it.title_cn ? it.title : ""; // 有中文时，原标题作为副标题
+          const mainTitle = it.title_cn || it.title;
+          const subTitle = it.title_cn ? it.title : "";
 
           div.innerHTML = `
             <div class="flex items-start justify-between gap-4">
               <div class="min-w-0 flex-1">
-                <div class="text-[14px] leading-snug font-medium text-slate-100 group-hover:text-cyan-300 transition flex items-center flex-wrap gap-y-1">
+                <div class="text-[14px] leading-tight font-medium text-slate-100 group-hover:text-cyan-300 transition flex items-center flex-wrap gap-y-1.5">
                   ${categoryTag}
-                  <span>${mainTitle}</span>
+                  <span class="line-clamp-2">${mainTitle}</span>
+                  ${it.hot_info ? `<span class="ml-2 text-[10px] text-fuchsia-400/90 font-mono font-bold whitespace-nowrap bg-fuchsia-400/5 px-1.5 py-0.5 rounded border border-fuchsia-400/10">${it.hot_info}</span>` : ''}
                 </div>
-                ${subTitle ? `<div class="mt-1.5 text-[11px] text-slate-500 italic font-light opacity-70 group-hover:opacity-100 transition">${subTitle}</div>` : ''}
-                <div class="mt-1 text-[10px] text-slate-600/50 truncate font-mono">${it.url}</div>
+                ${subTitle ? `<div class="mt-2 text-[11px] text-slate-500 italic font-light opacity-60 group-hover:opacity-100 transition line-clamp-1">${subTitle}</div>` : ''}
+                <div class="mt-1 text-[10px] text-slate-700 font-mono truncate opacity-40">${it.url}</div>
               </div>
-              <div class="text-[10px] text-slate-700 shrink-0 mt-1 font-mono group-hover:text-cyan-500 transition border border-slate-800 px-1 rounded">READ →</div>
+              <div class="text-[10px] text-slate-700 shrink-0 mt-1 font-mono group-hover:text-cyan-500 transition border border-slate-800 px-1.5 py-0.5 rounded uppercase">GO →</div>
             </div>
           `;
           listEl.appendChild(div);
@@ -170,7 +175,8 @@
         filteredItems = allItems.filter(it => 
           (it.title && it.title.toLowerCase().includes(query)) || 
           (it.title_cn && it.title_cn.toLowerCase().includes(query)) ||
-          (it.category && it.category.toLowerCase().includes(query))
+          (it.category && it.category.toLowerCase().includes(query)) ||
+          (it.hot_info && it.hot_info.toLowerCase().includes(query))
         );
         currentPage = 1;
         updateDisplay();
