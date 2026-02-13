@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Moltbook 科技动向抓取脚本（增量储存版）
-功能：抓取数据、AI总结、增量储存至 data.json 并去重、更新 README.md
+Moltbook 科技动向抓取脚本（多频道增量版）
+功能：支持多 URL 抓取、AI 汇总总结、全局去重储存至 data.json
 """
 
 import re
@@ -34,7 +34,7 @@ NAV_TEXT_BLACKLIST = {
 
 def summarize_with_ddg(titles: List[str]) -> str:
     """
-    使用 AI 总结今日趋势。
+    使用 AI 汇总总结多个频道的今日趋势。
     """
     if not titles:
         return ""
@@ -49,14 +49,14 @@ def summarize_with_ddg(titles: List[str]) -> str:
     cleaned = [t for t in cleaned if t]
 
     def _fallback_three_trends(ts: List[str]) -> str:
-        # 简化版兜底
-        return "- **AI 代理与自动化**：行业关注重点转向代理框架的生产环境落地。\n- **多智能体协作**：关于智能体通信协议与共享记忆的讨论增多。\n- **基础设施建设**：开发者更倾向于利用结构化数据和 API 构建底层支撑。"
+        return "- **跨领域技术融合**：多个频道显示 AI 正在加速向垂直行业（如金融、硬件）渗透。\n- **智能体生态协同**：不同领域对多智能体协作协议的讨论热度显著上升。\n- **工程化落地提速**：开发者关注点从模型能力转向稳定运行与大规模部署。"
 
-    cleaned = cleaned[:25]
+    # AI 总结通常取前 30 条最具代表性的
+    cleaned = cleaned[:30]
     cleaned = [t[:220] for t in cleaned]
 
     prompt = (
-        "你是科技资讯编辑。请基于以下标题列表，用中文总结“今日 3 大趋势”。\n"
+        "你是科技资讯编辑。请基于以下汇总自多个频道的标题列表，用中文总结“今日 3 大趋势”。\n"
         "要求：严格输出 3 条；使用 Markdown 无序列表；每条 1-2 句；不要输出额外内容。\n\n"
         "标题列表：\n" + "\n".join(f"- {t}" for t in cleaned)
     )
@@ -75,7 +75,7 @@ def summarize_with_ddg(titles: List[str]) -> str:
 
 def scrape_post_links_with_playwright(url: str, base_url: str, item_limit: int) -> List[Tuple[str, str]]:
     """
-    抓取带 /post/ 的链接。
+    抓取特定 URL 的链接。
     """
     results: List[Tuple[str, str]] = []
     seen_urls = set()
@@ -102,40 +102,49 @@ def scrape_post_links_with_playwright(url: str, base_url: str, item_limit: int) 
                     results.append((text, full_url))
                     if len(results) >= item_limit: break
         except Exception as e:
-            print(f"抓取出错: {e}")
+            print(f"抓取 {url} 出错: {e}")
         finally:
             browser.close()
     return results
 
 
-def load_config(config_path: Path) -> Tuple[str, int]:
-    default_url, default_limit = "https://www.moltbook.com/m/ai", 30
-    if not config_path.exists(): return default_url, default_limit
+def load_config(config_path: Path) -> Tuple[List[str], int]:
+    """
+    核心修改：读取 target_urls (列表)。如果不存在则兼容旧版 target_url。
+    """
+    default_urls = ["https://www.moltbook.com/m/ai"]
+    default_limit = 30
+    
+    if not config_path.exists():
+        return default_urls, default_limit
+
     try:
         data = json.loads(config_path.read_text(encoding="utf-8"))
-        return data.get("target_url", default_url), int(data.get("item_limit", default_limit))
-    except:
-        return default_url, default_limit
+        # 优先读取 target_urls 列表，如果没有则读 target_url 并转为列表
+        urls = data.get("target_urls")
+        if not urls:
+            single_url = data.get("target_url")
+            urls = [single_url] if single_url else default_urls
+            
+        limit = int(data.get("item_limit", default_limit))
+        return urls, limit
+    except Exception:
+        return default_urls, default_limit
 
 
 def save_data_incremental(output_path: Path, beijing_time: str, ai_summary: str, new_items: List[Tuple[str, str]]) -> None:
     """
-    核心修改：读取旧数据，合并，去重，并保留最新内容。
+    读取旧数据，与本次抓取的所有频道内容合并去重。
     """
-    # 1. 尝试读取现有数据
     existing_items = []
     if output_path.exists():
         try:
             old_data = json.loads(output_path.read_text(encoding="utf-8"))
             existing_items = old_data.get("items", [])
-        except Exception as e:
-            print(f"读取旧数据失败: {e}")
+        except:
+            pass
 
-    # 2. 准备新数据
     formatted_new = [{"title": t, "url": u} for t, u in new_items]
-
-    # 3. 合并并去重 (使用 URL 作为唯一标识)
-    # 顺序：新抓取的放在前面，旧的放在后面
     combined_list = formatted_new + existing_items
     
     unique_items = []
@@ -147,40 +156,34 @@ def save_data_incremental(output_path: Path, beijing_time: str, ai_summary: str,
             unique_items.append(item)
             seen_urls.add(url)
 
-    # 4. 数量限制：保留最近 500 条，防止 JSON 过大
     final_items = unique_items[:500]
-
-    # 5. 保存
     payload = {
         "beijing_time": beijing_time,
-        "ai_summary": ai_summary,  # 总结通常保留最新的
+        "ai_summary": ai_summary,
         "items": final_items,
     }
     output_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"数据已同步，当前库内共计 {len(final_items)} 条去重记录。")
+    print(f"聚合完成：共计 {len(final_items)} 条去重情报记录。")
 
 
 def write_readme(items: List[Tuple[str, str]], beijing_time: str, summary_md: str, output_path: Path) -> None:
-    """
-    README 通常只展示当次抓取的内容，方便快速查看。
-    """
     lines = [
-        "# 🤖 Moltbook 科技动向自动监测",
+        "# 🤖 Moltbook 科技多频道监测",
         "",
         f"**更新时间：** {beijing_time}",
         "",
-        "## 今日 3 大趋势（AI 总结）",
+        "## 全频道趋势汇总 (AI 总结)",
         "",
         summary_md if summary_md.strip() else "- （暂无总结）",
         "",
-        "## 最新抓取列表",
+        "## 本次抓取更新",
         "",
     ]
     if items:
         for i, (title, url) in enumerate(items, 1):
             lines.append(f"{i}. [{title}]({url})")
     else:
-        lines.append("*暂无新内容。*")
+        lines.append("*本次未发现新内容。*")
     
     output_path.write_text("\n".join(lines), encoding="utf-8")
 
@@ -191,20 +194,27 @@ def main() -> None:
     data_path = script_dir / "data.json"
     readme_path = script_dir / "README.md"
     
-    url, item_limit = load_config(config_path)
+    urls, item_limit = load_config(config_path)
+    base_url = "https://www.moltbook.com"
     
-    print(f"开始任务: {url}")
-    new_items = scrape_post_links_with_playwright(url, "https://www.moltbook.com", item_limit)
+    all_new_items = []
     
-    print("生成 AI 总结...")
-    summary = summarize_with_ddg([t for t, _ in new_items])
+    # 循环抓取多个频道
+    for url in urls:
+        print(f"🚀 正在抓取频道: {url}")
+        items = scrape_post_links_with_playwright(url, base_url, item_limit)
+        all_new_items.extend(items)
+        # 礼貌抓取，间隔 2 秒
+        time.sleep(2)
+    
+    print(f"📊 汇总完成，共抓取到 {len(all_new_items)} 条原始数据。开始 AI 分析...")
+    summary = summarize_with_ddg([t for t, _ in all_new_items])
     
     curr_time = get_beijing_time()
     
-    # 执行增量保存
-    save_data_incremental(data_path, curr_time, summary, new_items)
-    # 更新 README
-    write_readme(new_items, curr_time, summary, readme_path)
+    # 执行汇总保存与更新
+    save_data_incremental(data_path, curr_time, summary, all_new_items)
+    write_readme(all_new_items, curr_time, summary, readme_path)
 
 
 if __name__ == "__main__":
