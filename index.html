@@ -151,7 +151,7 @@
       }
 
       async function refreshData() {
-        const res = await fetch("/api/data");
+        const res = await fetch("./data.json");
         const data = await res.json();
 
         $("last_time").textContent = data.beijing_time || "-";
