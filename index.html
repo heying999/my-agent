@@ -26,7 +26,7 @@
             智能聚合 Agent
           </div>
           <h1 class="mt-3 text-2xl font-semibold tracking-tight">🤖 Moltbook 科技动向情报库</h1>
-          <p class="mt-1 text-sm text-slate-400">支持多频道聚合抓取、分类索引与 AI 深度总结。</p>
+          <p class="mt-1 text-sm text-slate-400">支持多频道聚合抓取、双语对照与 AI 深度总结。</p>
         </div>
         <div class="rounded-lg border border-slate-800 bg-slate-900/40 px-4 py-2 text-sm">
           <div class="text-slate-400">最后更新时间</div>
@@ -40,7 +40,7 @@
             <input
               id="search_input"
               type="text"
-              placeholder="搜索文章标题、频道或关键词..."
+              placeholder="搜索中英文标题、频道或关键词..."
               class="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-10 py-2.5 text-sm text-slate-100 outline-none focus:border-cyan-400/40 focus:ring-2 focus:ring-cyan-400/10"
             />
             <span class="absolute left-3 top-3 text-slate-500">🔍</span>
@@ -59,7 +59,7 @@
               <span class="h-1.5 w-1.5 rounded-full bg-fuchsia-400"></span>
               今日 10 大核心动向
             </h2>
-            <div id="ai_summary" class="mt-4 text-xs leading-relaxed text-slate-200">
+            <div id="ai_summary" class="mt-4 text-[13px] leading-relaxed text-slate-200">
               <div class="animate-pulse text-slate-500">正在分析全频道数据...</div>
             </div>
           </div>
@@ -68,15 +68,15 @@
         <div class="lg:col-span-2">
           <div class="rounded-2xl border border-slate-800 bg-slate-900/40 p-5 shadow-glow">
             <div class="flex items-center justify-between border-b border-slate-800 pb-4">
-              <h2 class="text-sm font-semibold text-slate-100">分类情报流</h2>
-              <div class="text-xs text-slate-400">共 <span id="item_count">0</span> 条去重记录</div>
+              <h2 class="text-sm font-semibold text-slate-100 text-cyan-400/80">全球实时情报 (双语对照)</h2>
+              <div class="text-[11px] text-slate-500 font-mono">COUNT: <span id="item_count">0</span></div>
             </div>
             
             <div id="items_list" class="divide-y divide-slate-800/50"></div>
             
             <div class="mt-6 flex items-center justify-between border-t border-slate-800 pt-6">
               <button id="prev_page" class="rounded-lg border border-slate-800 px-3 py-1 text-xs transition hover:bg-slate-800 disabled:opacity-30">上一页</button>
-              <div id="page_info" class="text-xs text-slate-500">第 1 / 1 页</div>
+              <div id="page_info" class="text-xs text-slate-500 font-mono">PAGE 1 / 1</div>
               <button id="next_page" class="rounded-lg border border-slate-800 px-3 py-1 text-xs transition hover:bg-slate-800 disabled:opacity-30">下一页</button>
             </div>
           </div>
@@ -131,30 +131,35 @@
           const div = document.createElement("a");
           div.href = it.url;
           div.target = "_blank";
-          div.className = "group block py-4 transition hover:bg-slate-900/20";
+          div.className = "group block py-4 transition hover:bg-slate-900/10";
           
           // 渲染频道分类标签
           const categoryTag = it.category ? 
             `<span class="mr-2 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 uppercase font-bold tracking-wider">${it.category}</span>` 
             : '';
 
+          // 核心逻辑：双语展示
+          const mainTitle = it.title_cn || it.title; // 优先显示中文
+          const subTitle = it.title_cn ? it.title : ""; // 有中文时，原标题作为副标题
+
           div.innerHTML = `
             <div class="flex items-start justify-between gap-4">
-              <div class="min-w-0">
-                <div class="text-sm font-medium text-slate-100 group-hover:text-cyan-300 transition flex items-center flex-wrap gap-y-1">
+              <div class="min-w-0 flex-1">
+                <div class="text-[14px] leading-snug font-medium text-slate-100 group-hover:text-cyan-300 transition flex items-center flex-wrap gap-y-1">
                   ${categoryTag}
-                  <span class="truncate">${it.title}</span>
+                  <span>${mainTitle}</span>
                 </div>
-                <div class="mt-1 text-[10px] text-slate-500 truncate opacity-60">${it.url}</div>
+                ${subTitle ? `<div class="mt-1.5 text-[11px] text-slate-500 italic font-light opacity-70 group-hover:opacity-100 transition">${subTitle}</div>` : ''}
+                <div class="mt-1 text-[10px] text-slate-600/50 truncate font-mono">${it.url}</div>
               </div>
-              <div class="text-[10px] text-slate-600 shrink-0 mt-1 font-mono group-hover:text-cyan-400 transition">GO ↗</div>
+              <div class="text-[10px] text-slate-700 shrink-0 mt-1 font-mono group-hover:text-cyan-500 transition border border-slate-800 px-1 rounded">READ →</div>
             </div>
           `;
           listEl.appendChild(div);
         });
 
         const totalPages = Math.ceil(filteredItems.length / itemsPerPage) || 1;
-        $("page_info").textContent = `第 ${currentPage} / ${totalPages} 页`;
+        $("page_info").textContent = `PAGE ${currentPage} / ${totalPages}`;
         $("item_count").textContent = filteredItems.length;
         $("prev_page").disabled = currentPage === 1;
         $("next_page").disabled = currentPage === totalPages;
@@ -163,9 +168,9 @@
       $("search_input").oninput = (e) => {
         const query = e.target.value.toLowerCase();
         filteredItems = allItems.filter(it => 
-          it.title.toLowerCase().includes(query) || 
-          (it.category && it.category.toLowerCase().includes(query)) ||
-          it.url.toLowerCase().includes(query)
+          (it.title && it.title.toLowerCase().includes(query)) || 
+          (it.title_cn && it.title_cn.toLowerCase().includes(query)) ||
+          (it.category && it.category.toLowerCase().includes(query))
         );
         currentPage = 1;
         updateDisplay();
