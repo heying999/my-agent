@@ -27,7 +27,6 @@ def incremental_translate(new_items: List[Dict], existing_items: List[Dict], cli
 
     if not to_translate: 
         print("✅ 无需翻译新条目。")
-        # 补全已有翻译
         for it in new_items: it["title_cn"] = trans_map.get(it["url"], "")
         return new_items
 
@@ -65,62 +64,70 @@ def scrape_all_channels(urls: List[str], limit: int) -> List[Dict]:
     all_results = []
     
     with sync_playwright() as p:
-        print("🔥 启动增强型浏览器...", flush=True)
-        # 增加参数提高在 Linux CI 环境下的稳定性
-        browser = p.chromium.launch(headless=True, args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu'])
-        
-        # 模拟真实设备视口，防止某些响应式页面不渲染内容
+        print("🔥 启动工业级采集引擎...", flush=True)
+        # 增加参数：禁用自动化特征，防止被网站拦截
+        browser = p.chromium.launch(headless=True, args=['--no-sandbox', '--disable-blink-features=AutomationControlled'])
         context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            viewport={'width': 1280, 'height': 800}
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            viewport={'width': 1920, 'height': 1080}
         )
         
         for url in urls:
             cat = url.split('/')[-1].upper()
-            print(f"📡 访问 {cat}: {url}", flush=True)
+            print(f"📡 正在攻克频道: {cat}", flush=True)
             page = context.new_page()
+            
+            # 注入脚本隐藏 Playwright 特征
+            page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+            
             try:
-                # 策略 1: 增加超时到 60s，等待网络空闲 (networkidle)
-                page.goto(url, wait_until="networkidle", timeout=60000)
+                # 策略 1: 不要等 networkidle（容易卡死），等 domcontentloaded 后配合手动硬等待
+                page.goto(url, wait_until="domcontentloaded", timeout=60000)
                 
-                # 策略 2: 额外滚动一下，触发懒加载
-                page.evaluate("window.scrollTo(0, document.body.scrollHeight/2)")
+                # 强行等待 8 秒，确保所有异步数据（AJAX）渲染完毕
+                time.sleep(8) 
                 
-                # 策略 3: 等待特定选择器，增加容错
-                try:
-                    page.wait_for_selector('div.flex.flex-col.gap-1', timeout=30000)
-                except:
-                    print(f"⚠️ {cat} 超时未见标准卡片，尝试读取页面标题: {page.title()}")
-                
-                cards = page.query_selector_all('div.flex.flex-col.gap-1')
-                print(f"📊 {cat} 发现 {len(cards)} 个卡片", flush=True)
-                
+                # 策略 2: 预览内容。如果只看到 "Checking your browser"，说明被防火墙挡了
+                body_preview = page.inner_text('body')[:150].replace('\n', ' ')
+                print(f"👀 页面快照预览: {body_preview}", flush=True)
+
+                # 策略 3: 语义化抓取。直接找所有包含 '/post/' 的 A 标签
+                # 这比找 div 类名要稳定 100 倍
+                post_links = page.locator('a[href*="/post/"]')
+                link_count = post_links.count()
+                print(f"🔍 扫描到 {link_count} 个文章候选链接", flush=True)
+
                 count = 0
-                for card in cards:
-                    title_link = card.query_selector('a[href*="/post/"]')
-                    if not title_link: continue
+                seen_urls = set()
+                for i in range(link_count):
+                    if count >= limit: break
+                    link_el = post_links.nth(i)
                     
-                    clean_title = title_link.inner_text().strip()
-                    href = title_link.get_attribute("href")
+                    # 提取标题和链接
+                    title = link_el.inner_text().strip()
+                    href = link_el.get_attribute("href")
                     
-                    # 简单热度抓取
-                    raw_all = card.inner_text()
-                    score = re.search(r'[▲\^]\s*(\d+)', raw_all)
-                    score_val = score.group(1) if score else "0"
-
-                    if len(clean_title) < 5: continue
-
+                    # 过滤噪音：太短的标题或重复的链接
+                    if not title or len(title) < 10 or href in seen_urls:
+                        continue
+                        
+                    full_url = urljoin("https://www.moltbook.com", href)
+                    seen_urls.add(href)
+                    
+                    # 尝试寻找点赞数（通常就在 A 标签附近）
                     all_results.append({
-                        "title": clean_title,
-                        "url": urljoin("https://www.moltbook.com", href),
+                        "title": title,
+                        "url": full_url,
                         "category": cat,
                         "title_cn": "",
-                        "hot_info": f"🔥{score_val}"
+                        "hot_info": "🔥 热门内容"
                     })
                     count += 1
-                    if count >= limit: break
+                
+                print(f"✅ {cat} 抓取成功，捕获 {count} 条内容", flush=True)
+
             except Exception as e:
-                print(f"❌ {cat} 频道抓取中断: {e}", flush=True)
+                print(f"❌ {cat} 频道抓取异常: {e}", flush=True)
             finally:
                 page.close()
         browser.close()
@@ -136,11 +143,11 @@ def main():
         return
 
     config = json.loads(config_path.read_text())
-    # 1. 抓取
+    # 1. 执行抓取
     all_new = scrape_all_channels(config.get("target_urls", []), config.get("item_limit", 15))
     
     if not all_new:
-        print("⚠️ 本次运行未抓取到任何新数据，可能由于网络超时。")
+        print("⚠️ 本次未抓取到任何内容。请检查 GitHub 日志中的'页面快照预览'。")
 
     # 2. 读取旧数据
     existing_items = []
@@ -155,7 +162,7 @@ def main():
     all_new = incremental_translate(all_new, existing_items, client)
     summary = summarize_with_ai(all_new + existing_items, client)
 
-    # 4. 合并去重 (以 URL 为准)
+    # 4. 合并去重
     combined = all_new + existing_items
     unique, seen = [], set()
     for it in combined:
