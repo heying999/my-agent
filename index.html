@@ -11,12 +11,15 @@
       };
     </script>
     <style>
-      /* 强制单行/双语截断逻辑 */
       .line-clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
       .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+      /* 滚动条美化 */
+      ::-webkit-scrollbar { width: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
     </style>
   </head>
-  <body class="min-h-screen bg-slate-950 text-slate-100 font-sans">
+  <body class="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-cyan-500/30">
     <div class="pointer-events-none fixed inset-0 overflow-hidden">
       <div class="absolute -top-24 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-cyan-500/10 blur-3xl"></div>
       <div class="absolute -bottom-24 left-1/4 h-[520px] w-[520px] rounded-full bg-fuchsia-500/10 blur-3xl"></div>
@@ -27,62 +30,63 @@
       <header class="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
           <div class="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs text-cyan-200 shadow-glow">
-            <span class="h-1.5 w-1.5 rounded-full bg-cyan-300"></span>
-            智能聚合 Agent
+            <span class="h-1.5 w-1.5 rounded-full bg-cyan-300 animate-pulse"></span>
+            智能聚合 Agent 2026
           </div>
-          <h1 class="mt-3 text-2xl font-semibold tracking-tight">🤖 Moltbook 科技动向情报库</h1>
-          <p class="mt-1 text-sm text-slate-400">支持多频道聚合抓取、双语对照与热度实时追踪。</p>
+          <h1 class="mt-3 text-2xl font-bold tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">🤖 Moltbook 科技动向情报库</h1>
+          <p class="mt-1 text-sm text-slate-400 font-light">实时监测 Moltbook 频道动态，由 AI 自动完成双语对齐与核心摘要。</p>
         </div>
-        <div class="rounded-lg border border-slate-800 bg-slate-900/40 px-4 py-2 text-sm">
-          <div class="text-slate-400 text-xs">最后更新时间</div>
-          <div id="last_time" class="mt-0.5 font-medium text-slate-100 font-mono">-</div>
+        <div class="rounded-lg border border-slate-800 bg-slate-900/60 px-4 py-2 text-sm backdrop-blur-md">
+          <div class="text-slate-500 text-[10px] uppercase tracking-wider font-bold">Last Sync</div>
+          <div id="last_time" class="mt-0.5 font-medium text-cyan-400 font-mono tracking-tighter">Fetching...</div>
         </div>
       </header>
 
-      <section class="mt-8 rounded-2xl border border-slate-800 bg-slate-900/40 p-5 shadow-glow">
+      <section class="mt-8 rounded-2xl border border-slate-800 bg-slate-900/40 p-5 shadow-glow backdrop-blur-sm">
         <div class="flex flex-col gap-4 md:flex-row md:items-center">
           <div class="relative flex-1">
             <input
               id="search_input"
               type="text"
-              placeholder="搜索题目、评论数或关键词..."
-              class="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-10 py-2.5 text-sm text-slate-100 outline-none focus:border-cyan-400/40 focus:ring-2 focus:ring-cyan-400/10"
+              placeholder="搜索题目、频道或热度关键词..."
+              class="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-10 py-2.5 text-sm text-slate-100 outline-none focus:border-cyan-400/40 focus:ring-4 focus:ring-cyan-400/5 transition-all"
             />
             <span class="absolute left-3 top-3 text-slate-500">🔍</span>
           </div>
           <div class="flex items-center gap-3">
-            <button id="refresh" class="rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-2.5 text-sm transition hover:bg-slate-800">刷新缓存</button>
-            <button id="save_run" class="rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400">强制重抓</button>
+            <button id="refresh" class="rounded-xl border border-slate-800 bg-slate-950/40 px-5 py-2.5 text-sm transition hover:bg-slate-800 hover:border-slate-700">刷新缓存</button>
+            <button id="save_run" class="rounded-xl bg-cyan-500 px-5 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-cyan-400 active:scale-95">强制重抓</button>
           </div>
         </div>
       </section>
 
       <section class="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div class="lg:col-span-1">
-          <div class="rounded-2xl border border-slate-800 bg-slate-900/40 p-5 shadow-glow h-fit sticky top-6">
-            <h2 class="text-sm font-semibold text-slate-100 flex items-center gap-2">
-              <span class="h-1.5 w-1.5 rounded-full bg-fuchsia-400"></span>
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/40 p-5 shadow-glow h-fit sticky top-6 backdrop-blur-md">
+            <h2 class="text-sm font-bold text-slate-100 flex items-center gap-2 mb-4">
+              <span class="h-1.5 w-1.5 rounded-full bg-fuchsia-500 shadow-[0_0_10px_rgba(232,121,249,0.5)]"></span>
               今日 10 大核心动向
             </h2>
-            <div id="ai_summary" class="mt-4 text-[13px] leading-relaxed text-slate-200">
-              <div class="animate-pulse text-slate-500">正在分析云端情报...</div>
+            <div id="ai_summary" class="space-y-4 text-[13px] leading-relaxed text-slate-300">
+              <div class="animate-pulse text-slate-500 py-4">正在注入 AI 深度情报...</div>
             </div>
           </div>
         </div>
 
         <div class="lg:col-span-2">
-          <div class="rounded-2xl border border-slate-800 bg-slate-900/40 p-5 shadow-glow">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-4">
-              <h2 class="text-sm font-semibold text-slate-100 text-cyan-400/80">全球科技情报流</h2>
-              <div class="text-[11px] text-slate-500 font-mono uppercase tracking-tighter">DATASET: <span id="item_count">0</span> RECS</div>
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/40 p-6 shadow-glow backdrop-blur-md">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-4 mb-2">
+              <h2 class="text-sm font-bold text-cyan-400/90 uppercase tracking-widest">全球科技情报流</h2>
+              <div class="text-[11px] text-slate-500 font-mono">INDEXED: <span id="item_count" class="text-slate-300">0</span> RECS</div>
             </div>
             
-            <div id="items_list" class="divide-y divide-slate-800/50"></div>
+            <div id="items_list" class="divide-y divide-slate-800/50">
+                </div>
             
             <div class="mt-6 flex items-center justify-between border-t border-slate-800 pt-6">
-              <button id="prev_page" class="rounded-lg border border-slate-800 px-3 py-1 text-xs transition hover:bg-slate-800 disabled:opacity-30">上一页</button>
-              <div id="page_info" class="text-xs text-slate-500 font-mono tracking-widest uppercase">PAGE 1 / 1</div>
-              <button id="next_page" class="rounded-lg border border-slate-800 px-3 py-1 text-xs transition hover:bg-slate-800 disabled:opacity-30">下一页</button>
+              <button id="prev_page" class="rounded-lg border border-slate-800 px-4 py-1.5 text-xs font-medium transition hover:bg-slate-800 disabled:opacity-20 disabled:cursor-not-allowed">PREV</button>
+              <div id="page_info" class="text-[10px] text-slate-500 font-mono tracking-[0.2em]">PAGE 1 / 1</div>
+              <button id="next_page" class="rounded-lg border border-slate-800 px-4 py-1.5 text-xs font-medium transition hover:bg-slate-800 disabled:opacity-20 disabled:cursor-not-allowed">NEXT</button>
             </div>
           </div>
         </div>
@@ -91,38 +95,50 @@
 
     <script>
       const $ = (id) => document.getElementById(id);
-      const isGitHub = window.location.hostname.includes("github.io");
-
       let allItems = [];
       let filteredItems = [];
       let currentPage = 1;
       const itemsPerPage = 20;
 
+      // 验证翻译内容是否有效 (排除符号和太短的内容)
+      function isValidTranslation(text) {
+        if (!text) return false;
+        const noise = ['▲', '▼', '^', 'posted', 'comments'];
+        if (text.length < 5) return false;
+        return !noise.some(char => text.toLowerCase().includes(char));
+      }
+
       async function fetchData() {
-        // 增加随机参数粉碎浏览器缓存
-        const path = isGitHub ? `data.json?t=${new Date().getTime()}` : "/api/data";
+        const path = `data.json?v=${new Date().getTime()}`;
         try {
           const res = await fetch(path);
+          if (!res.ok) throw new Error("File not found");
           const data = await res.json();
+          
           allItems = data.items || [];
           filteredItems = [...allItems];
           
-          $("last_time").textContent = data.beijing_time || "-";
+          $("last_time").textContent = data.beijing_time || "Unknown";
           renderSummary(data.ai_summary);
           updateDisplay();
         } catch (e) {
-          console.error("加载数据失败", e);
+          console.error("Fetch error:", e);
+          $("ai_summary").innerHTML = '<div class="text-red-400 text-xs">情报注入失败，请检查 data.json 是否存在。</div>';
         }
       }
 
       function renderSummary(summary) {
         const el = $("ai_summary");
-        if (!summary) return el.innerHTML = '<div class="text-slate-500">总结生成中...</div>';
-        const lines = summary.split('\n').filter(l => l.trim().startsWith("-"));
-        el.innerHTML = `<ul class="space-y-4">${lines.map(l => `
-          <li class="relative pl-4 before:absolute before:left-0 before:top-2 before:h-1 before:w-1 before:rounded-full before:bg-cyan-500/50">
-            ${l.replace(/^-+\s*/, "").replace(/\*\*(.*?)\*\*/g, '<b class="text-cyan-300">$1</b>')}
-          </li>`).join('')}</ul>`;
+        if (!summary || summary.length < 10) {
+          return el.innerHTML = '<div class="text-slate-500 italic">分析报告生成中...</div>';
+        }
+
+        // 处理 Markdown 格式：换行符转 <br>，** 加粗转为高亮 span
+        let html = summary
+          .replace(/\n/g, '<br>')
+          .replace(/\*\*(.*?)\*\*/g, '<strong class="text-cyan-300 font-bold">$1</strong>');
+        
+        el.innerHTML = `<div class="bg-slate-950/40 p-4 rounded-xl border border-slate-800/50 leading-relaxed">${html}</div>`;
       }
 
       function updateDisplay() {
@@ -131,36 +147,37 @@
         const pageItems = filteredItems.slice(start, end);
 
         const listEl = $("items_list");
-        listEl.innerHTML = pageItems.length ? "" : '<div class="py-10 text-center text-slate-500 text-sm italic">NO INTELLIGENCE FOUND</div>';
+        listEl.innerHTML = "";
+
+        if (pageItems.length === 0) {
+          listEl.innerHTML = '<div class="py-20 text-center text-slate-600 text-sm font-light tracking-tighter">NO INTELLIGENCE STREAM FOUND</div>';
+        }
 
         pageItems.forEach(it => {
-          const div = document.createElement("a");
-          div.href = it.url;
-          div.target = "_blank";
-          div.className = "group block py-4 transition hover:bg-slate-900/10";
+          const card = document.createElement("div");
+          card.className = "group py-5 transition-all duration-300 border-b border-slate-900 hover:bg-cyan-500/5 px-2 -mx-2 rounded-lg";
           
-          const categoryTag = it.category ? 
-            `<span class="mr-2 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 uppercase font-bold tracking-wider">${it.category}</span>` 
-            : '';
+          // 容错处理：如果翻译是符号，直接降级显示英文标题
+          const displayTitle = isValidTranslation(it.title_cn) ? it.title_cn : it.title;
+          const secondaryTitle = isValidTranslation(it.title_cn) ? it.title : "";
 
-          const mainTitle = it.title_cn || it.title;
-          const subTitle = it.title_cn ? it.title : "";
-
-          div.innerHTML = `
-            <div class="flex items-start justify-between gap-4">
-              <div class="min-w-0 flex-1">
-                <div class="text-[14px] leading-tight font-medium text-slate-100 group-hover:text-cyan-300 transition flex items-center flex-wrap gap-y-1.5">
-                  ${categoryTag}
-                  <span class="line-clamp-2">${mainTitle}</span>
-                  ${it.hot_info ? `<span class="ml-2 text-[10px] text-fuchsia-400/90 font-mono font-bold whitespace-nowrap bg-fuchsia-400/5 px-1.5 py-0.5 rounded border border-fuchsia-400/10">${it.hot_info}</span>` : ''}
-                </div>
-                ${subTitle ? `<div class="mt-2 text-[11px] text-slate-500 italic font-light opacity-60 group-hover:opacity-100 transition line-clamp-1">${subTitle}</div>` : ''}
-                <div class="mt-1 text-[10px] text-slate-700 font-mono truncate opacity-40">${it.url}</div>
+          card.innerHTML = `
+            <div class="flex flex-col gap-1">
+              <div class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">
+                <span class="bg-slate-800 text-cyan-400 px-1.5 py-0.5 rounded border border-slate-700">${it.category || 'NEWS'}</span>
+                <span class="text-fuchsia-500/80">${it.hot_info || ''}</span>
               </div>
-              <div class="text-[10px] text-slate-700 shrink-0 mt-1 font-mono group-hover:text-cyan-500 transition border border-slate-800 px-1.5 py-0.5 rounded uppercase">GO →</div>
+              <a href="${it.url}" target="_blank" class="text-[15px] font-semibold text-slate-100 group-hover:text-cyan-400 transition-colors leading-snug">
+                ${displayTitle}
+              </a>
+              ${secondaryTitle ? `<p class="text-[11px] text-slate-500 italic font-light line-clamp-1 opacity-70 group-hover:opacity-100 mt-1">${secondaryTitle}</p>` : ''}
+              <div class="mt-2 flex items-center justify-between">
+                <span class="text-[9px] text-slate-700 font-mono truncate max-w-[200px]">${it.url}</span>
+                <a href="${it.url}" target="_blank" class="text-[10px] font-bold text-slate-600 hover:text-cyan-400 transition-colors tracking-tighter uppercase">View Intel →</a>
+              </div>
             </div>
           `;
-          listEl.appendChild(div);
+          listEl.appendChild(card);
         });
 
         const totalPages = Math.ceil(filteredItems.length / itemsPerPage) || 1;
@@ -170,13 +187,13 @@
         $("next_page").disabled = currentPage === totalPages;
       }
 
+      // 搜索逻辑
       $("search_input").oninput = (e) => {
         const query = e.target.value.toLowerCase();
         filteredItems = allItems.filter(it => 
           (it.title && it.title.toLowerCase().includes(query)) || 
           (it.title_cn && it.title_cn.toLowerCase().includes(query)) ||
-          (it.category && it.category.toLowerCase().includes(query)) ||
-          (it.hot_info && it.hot_info.toLowerCase().includes(query))
+          (it.category && it.category.toLowerCase().includes(query))
         );
         currentPage = 1;
         updateDisplay();
@@ -185,11 +202,9 @@
       $("prev_page").onclick = () => { if(currentPage > 1) { currentPage--; updateDisplay(); window.scrollTo(0,0); } };
       $("next_page").onclick = () => { if(currentPage * itemsPerPage < filteredItems.length) { currentPage++; updateDisplay(); window.scrollTo(0,0); } };
       $("refresh").onclick = () => fetchData();
-      $("save_run").onclick = () => {
-        if (isGitHub) alert("请前往 GitHub Actions 页面点击 'Run workflow'。");
-        else fetch("/api/run", {method:"POST"}).then(() => fetchData());
-      };
+      $("save_run").onclick = () => alert("请在 GitHub Actions 页面手动点击 'Run workflow' 以强制重新抓取。");
 
+      // 初始化
       fetchData();
     </script>
   </body>
